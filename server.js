@@ -28,29 +28,63 @@ app.get('/health', (req, res) => {
   res.status(200).send("OK");
 });
 
+// Runtime config for the frontend (uses non-VITE_ env vars, available at runtime)
+app.get('/api/config', (req, res) => {
+  res.json({ provider: process.env.AI_PROVIDER || 'anthropic' });
+});
+
 // Replicate the proxy configurations from vite.config.js
+// API keys are injected server-side from runtime env vars (AI_API_KEY) so they
+// don't need to be baked into the Vite build at image build time.
 app.use('/api/anthropic', createProxyMiddleware({
   target: 'https://api.anthropic.com',
   changeOrigin: true,
   pathRewrite: { '^/api/anthropic': '' },
+  on: {
+    proxyReq: (proxyReq) => {
+      const key = process.env.AI_API_KEY;
+      if (key) proxyReq.setHeader('x-api-key', key);
+    }
+  }
 }));
 
 app.use('/api/openai', createProxyMiddleware({
   target: 'https://api.openai.com',
   changeOrigin: true,
   pathRewrite: { '^/api/openai': '' },
+  on: {
+    proxyReq: (proxyReq) => {
+      const key = process.env.AI_API_KEY;
+      if (key) proxyReq.setHeader('Authorization', `Bearer ${key}`);
+    }
+  }
 }));
 
 app.use('/api/grok', createProxyMiddleware({
   target: 'https://api.x.ai',
   changeOrigin: true,
   pathRewrite: { '^/api/grok': '' },
+  on: {
+    proxyReq: (proxyReq) => {
+      const key = process.env.AI_API_KEY;
+      if (key) proxyReq.setHeader('Authorization', `Bearer ${key}`);
+    }
+  }
 }));
 
 app.use('/api/gemini', createProxyMiddleware({
   target: 'https://generativelanguage.googleapis.com',
   changeOrigin: true,
   pathRewrite: { '^/api/gemini': '' },
+  on: {
+    proxyReq: (proxyReq) => {
+      const key = process.env.AI_API_KEY;
+      if (key) {
+        const sep = proxyReq.path.includes('?') ? '&' : '?';
+        proxyReq.path += `${sep}key=${encodeURIComponent(key)}`;
+      }
+    }
+  }
 }));
 
 // Serve static files from the React app
