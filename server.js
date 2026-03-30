@@ -13,6 +13,8 @@ process.on('unhandledRejection', (reason, promise) => {
 
 console.log('--- SERVER STARTING UP ---');
 console.log(`Raw process.env.PORT from Cloud Run: ${process.env.PORT}`);
+console.log(`AI_PROVIDER: ${process.env.AI_PROVIDER || '(not set, defaulting to anthropic)'}`);
+console.log(`AI_API_KEY: ${process.env.AI_API_KEY ? '✅ present (' + process.env.AI_API_KEY.slice(0,6) + '...)' : '❌ NOT SET'}`);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,58 +35,49 @@ app.get('/api/config', (req, res) => {
   res.json({ provider: process.env.AI_PROVIDER || 'anthropic' });
 });
 
-// Replicate the proxy configurations from vite.config.js
-// API keys are injected server-side from runtime env vars (AI_API_KEY) so they
-// don't need to be baked into the Vite build at image build time.
-app.use('/api/anthropic', createProxyMiddleware({
+// Inject API key headers before proxying — reads from runtime env vars so the
+// key never needs to be baked into the Vite build at image build time.
+app.use('/api/anthropic', (req, _res, next) => {
+  const key = process.env.AI_API_KEY;
+  if (key) req.headers['x-api-key'] = key;
+  next();
+}, createProxyMiddleware({
   target: 'https://api.anthropic.com',
   changeOrigin: true,
   pathRewrite: { '^/api/anthropic': '' },
-  on: {
-    proxyReq: (proxyReq) => {
-      const key = process.env.AI_API_KEY;
-      if (key) proxyReq.setHeader('x-api-key', key);
-    }
-  }
 }));
 
-app.use('/api/openai', createProxyMiddleware({
+app.use('/api/openai', (req, _res, next) => {
+  const key = process.env.AI_API_KEY;
+  if (key) req.headers['authorization'] = `Bearer ${key}`;
+  next();
+}, createProxyMiddleware({
   target: 'https://api.openai.com',
   changeOrigin: true,
   pathRewrite: { '^/api/openai': '' },
-  on: {
-    proxyReq: (proxyReq) => {
-      const key = process.env.AI_API_KEY;
-      if (key) proxyReq.setHeader('Authorization', `Bearer ${key}`);
-    }
-  }
 }));
 
-app.use('/api/grok', createProxyMiddleware({
+app.use('/api/grok', (req, _res, next) => {
+  const key = process.env.AI_API_KEY;
+  if (key) req.headers['authorization'] = `Bearer ${key}`;
+  next();
+}, createProxyMiddleware({
   target: 'https://api.x.ai',
   changeOrigin: true,
   pathRewrite: { '^/api/grok': '' },
-  on: {
-    proxyReq: (proxyReq) => {
-      const key = process.env.AI_API_KEY;
-      if (key) proxyReq.setHeader('Authorization', `Bearer ${key}`);
-    }
-  }
 }));
 
-app.use('/api/gemini', createProxyMiddleware({
+app.use('/api/gemini', (req, _res, next) => {
+  const key = process.env.AI_API_KEY;
+  if (key) {
+    const sep = req.url.includes('?') ? '&' : '?';
+    req.url += `${sep}key=${encodeURIComponent(key)}`;
+  }
+  next();
+}, createProxyMiddleware({
   target: 'https://generativelanguage.googleapis.com',
   changeOrigin: true,
   pathRewrite: { '^/api/gemini': '' },
-  on: {
-    proxyReq: (proxyReq) => {
-      const key = process.env.AI_API_KEY;
-      if (key) {
-        const sep = proxyReq.path.includes('?') ? '&' : '?';
-        proxyReq.path += `${sep}key=${encodeURIComponent(key)}`;
-      }
-    }
-  }
 }));
 
 // Serve static files from the React app
