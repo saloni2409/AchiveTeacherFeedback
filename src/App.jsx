@@ -180,8 +180,15 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [askClear, setAsk]  = useState(false);
   const [toast, setToast]   = useState(null);
+  const [provider, setProvider] = useState("anthropic");
 
   const msg = (text, type="t-ok") => setToast({ text, type });
+
+  useEffect(() => {
+    fetch('/api/config').then(r => r.json()).then(cfg => {
+      if (cfg.provider) setProvider(cfg.provider);
+    }).catch(() => {});
+  }, []);
 
   // Load draft on mount — never crash
   useEffect(() => {
@@ -274,8 +281,6 @@ Reply with ONLY this JSON and nothing else — no backticks, no explanation:
 {"situation":"","behavior":"","impact":"","growthPrompt":"","ratings":{"Student Engagement & Agency":0,"Clarity of Instructions":0,"Studio Rotation Management":0,"Questioning & Dialogue Quality":0,"Differentiation / Inclusion Support":0,"Reflection / Debrief Facilitation":0,"Classroom Energy & Wellbeing":0},"strengths":"","scopeForImprovement":"","feedbackForCommunication":"","actions":[{"action":"","byWhen":"","owner":""}],"nextObservation":""}`;
 
     try {
-      let provider = import.meta.env.VITE_AI_PROVIDER || "anthropic";
-      let key = import.meta.env.VITE_AI_API_KEY || import.meta.env.VITE_ANTHROPIC_API_KEY;
       let res, data, raw;
 
       if (provider === "anthropic") {
@@ -283,7 +288,6 @@ Reply with ONLY this JSON and nothing else — no backticks, no explanation:
           method:"POST",
           headers:{
             "Content-Type": "application/json",
-            "x-api-key": key,
             "anthropic-version": "2023-06-01",
             "anthropic-dangerous-direct-browser-access": "true"
           },
@@ -298,8 +302,7 @@ Reply with ONLY this JSON and nothing else — no backticks, no explanation:
         res = await fetch(url, {
           method:"POST",
           headers:{
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + key
+            "Content-Type": "application/json"
           },
           body:JSON.stringify({ model, messages:[{role:"system",content:"You are a helpful assistant that strictly outputs JSON."}, {role:"user",content:prompt}] })
         });
@@ -307,7 +310,7 @@ Reply with ONLY this JSON and nothing else — no backticks, no explanation:
         data = await res.json();
         raw = data.choices[0].message.content;
       } else if (provider === "gemini") {
-        res = await fetch(`/api/gemini/v1beta/models/gemini-1.5-pro:generateContent?key=${key}`, {
+        res = await fetch(`/api/gemini/v1beta/models/gemini-1.5-pro:generateContent`, {
           method:"POST",
           headers:{"Content-Type": "application/json"},
           body:JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
