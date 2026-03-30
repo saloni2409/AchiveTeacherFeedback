@@ -291,7 +291,7 @@ Reply with ONLY this JSON and nothing else — no backticks, no explanation:
             "anthropic-version": "2023-06-01",
             "anthropic-dangerous-direct-browser-access": "true"
           },
-          body:JSON.stringify({ model:"claude-3-5-sonnet-20241022", max_tokens:1500, messages:[{role:"user",content:prompt}] })
+          body:JSON.stringify({ model:"claude-sonnet-4-5", max_tokens:1500, messages:[{role:"user",content:prompt}] })
         });
         if (!res.ok) throw new Error((await res.json().catch(()=>null))?.error?.message || `HTTP ${res.status}`);
         data = await res.json();
